@@ -1,18 +1,26 @@
 package com.example.demo.udp;
 
 import com.example.demo.model.Message;
+import com.example.demo.strategy.PackageTypeJudge;
+import com.example.demo.strategy.PackageTypeService;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Arrays;
 
 
 public class ServerHandler extends IoHandlerAdapter {
 
     private Logger logger = LoggerFactory.getLogger(getClass());
+
+    @Autowired
+    PackageTypeService packageTypeService;
 
     @Override
     public void sessionCreated(IoSession session)  {
@@ -25,23 +33,25 @@ public class ServerHandler extends IoHandlerAdapter {
     }
 
 	@Override
-	public void messageReceived(IoSession session, Object message)  {
-		logger.info("接受到数据 :" + message);
-		String text = String.valueOf(message);
-		logger.info("开始分析数据 " + text);
-		String result = analyzeData(text, session);
-        // 如果是无效协议包 则直接跳过数据回复
-        if (Arrays.equals(new byte[]{0x04}, Message.packageType)){
-            logger.info("收到 0x84 包 直接忽略！");
+	public void messageReceived(IoSession session, Object message){
+        logger.info("接受到数据 :" + message);
+        ByteArrayInputStream inputStream =  (ByteArrayInputStream)message;
+//        logger.info("跳过字节数 :" + inputStream.skip(1));
+//        logger.info("读取内容 :" + inputStream.read());
+        PackageTypeJudge packageTypeJudge = packageTypeService.map.get(Integer.valueOf(Message.packageType[0]));
+        byte[] result = packageTypeJudge.caculate(inputStream);
+        if (result == null){
+            logger.info("数据处理异常 请联系管理员！");
             return;
         }
+        // 如果是无效协议包 则直接跳过数据回复
+//        if (Arrays.equals(new byte[]{0x04}, Message.packageType)){
+//            logger.info("收到 0x84 包 直接忽略！");
+//            return;
+//        }
 		session.write(result);
 	}
 
-	private String analyzeData(String text, IoSession session)  {
-		String responseMessage = "接受到数据";
-		return responseMessage;
-	}
 
 	@Override
 	public void messageSent(IoSession session, Object message)  {
